@@ -1,0 +1,712 @@
+#include <NewhavenLCDSerial.h>
+#include <SoftwareSerial.h>
+
+#include "notes.h"
+
+//simon.ino
+// Summer Krinsky
+
+// Play the next note of a melody on each button press
+
+NewhavenLCDSerial lcd(13); // initialize LCD display using pin 13
+int rows = 2;      // number of rows
+int cols = 16;     // number of columns
+char letter;       // letter to print
+int globalpin;
+int counter = 0;  //tracks place within for loop array
+int counter2 = 0; //tracks palce within for loop array for hardmode
+int roundCount = 1;  //keeps track of round
+int timer;  // debounce timer
+int timer2; //for timed mode
+int ledPin[] = {6, 7, 9, 10}; //initialize lEDS
+enum btn{ON,DEBOUNCE,OFF};// our own type for button states
+int pattern[16]; //initilaize pattern array
+enum gameState {START, WAIT, PATTERN, PATTERN2, PATTERN3, PLAY, FAIL, WINROUND, WAIT2, HARDMODE, PLAYHARD, WAIT3, WAIT4, FINALWIN, WINROUND2}; //available game modes
+gameState currentState = START;
+int pins[] = {2, 3, 4, 5}; //initialize buttons
+int player[10]; //keeps track of player response in normal mode and for buttons in hard mode
+btn state[] = {OFF, OFF, OFF, OFF};    // variable to store state
+boolean userPress = false; //dummy variable to make led turn off with each human button press
+int pattern2[16]; //new pattern for hardmode tones
+int pattern3[16]; //new pattern for hardmode buttons
+int player2[10]; //keeps track of player input for tones in hard mode
+int count = 0;            // button-press counter
+int melody[] = {NOTE_E4,NOTE_FS4,NOTE_GS4,NOTE_A4}; //melody sequence corresponding to buttons
+int melody2[] = {NOTE_E4, NOTE_F4, NOTE_FS4, NOTE_E2, NOTE_GS4, NOTE_A4, NOTE_E5}; //melody sequence corresponding to fail
+int melody3[] = {NOTE_A3, NOTE_AS3, NOTE_B3, NOTE_E4}; //melody sequence corresponding to win
+int noteDurations[] = {8,8,8,8,8,8,8,8,8,8,8,8}; //initialize note durations for playNote function
+
+void setup() {
+ Serial.begin(9600); //for serial port printing
+ lcd.clear();
+ for (int i = 0; i < 4; i++){
+   
+  pinMode(pins[i], INPUT_PULLUP);  // initialize the button pin as an input
+  
+ }  
+ 
+ for (int i = 0; i < 4; i++){
+   
+ pinMode(ledPin[i], OUTPUT); //intialize ledPins as output
+  
+ }
+  
+}
+
+void loop(){
+  
+  switch (currentState){
+    case START:
+       gameStart(); //start sequence
+       break;
+    case WAIT:
+       waitFunction(); //waits for user input 
+       break;
+    case PATTERN:
+       patternFunction(); //generates random pattern for basic mode
+       break;
+    case PATTERN2:
+       pattern2Function(); //generates random pattern for just light pattern for HARD mode 
+       break;
+    case PATTERN3:
+       pattern3Function(); //generates random pattern for tones in HARD mode
+       break;
+    case PLAY:
+       playFunction(); //plays pattern for basic mode
+       break;
+    case WAIT2:
+       wait2Function(); //waits for user input for basic mode
+       delay(10);
+       break;
+    case FAIL:
+       failFunction(); //if user input is wrong
+       break;
+    case WINROUND:
+       winroundFunction(); //if user input matches pattern
+       break;
+    case HARDMODE:
+       hardMode(); //hard mode instructions
+       break;
+    case PLAYHARD:
+       playHard(); //plays pattern for hard mode
+       break;
+    case WAIT3:
+       wait3Button(); //waits for user input for light pattern in HARD mode
+       break;
+    case WAIT4:
+       wait4Tune(); //waits for user input for tone pattern in HARD mode
+       break;
+    case WINROUND2:
+       winround2Fuction(); //if user input matches pattern
+       break;
+    case FINALWIN:
+       winFinal(); //if user input matches pattern past round 9, final win sequence
+       break;
+  }
+}
+
+void gameStart(){
+  
+ roundCount = 1; //initialize round count
+ 
+ lcd.clear();
+ lcd.setCursor(0,0);
+ lcd.print("Press Any Button");
+ lcd.setCursor(1,1);
+ lcd.print("to Start Game");
+ 
+ currentState = WAIT; //pass to wait for user to press a button
+  
+}
+
+void waitFunction(){
+  
+for(int i = 0; i < 4; i++){
+  pins[i];
+  
+  int reading = digitalRead(pins[i]);  // check pin reading
+  switch (state[i]) {
+    case OFF: 
+      if (reading == LOW) { // button press?
+        state[i] = DEBOUNCE;
+        timer = 2;
+      } break;
+    case DEBOUNCE:
+     if (reading == LOW) {  // if button reading remains low
+        if (timer <= 0) {   // and the time elapses
+          state[i] = ON;       // this is a "real" button press"
+        
+          digitalWrite(ledPin[i], HIGH);
+          globalpin = i;
+          playNote();
+          
+        } else timer--;    // if time hasn't elapsed, but button is still low, keep waiting
+     } else state[i] = OFF;
+     lcd.clear();
+     currentState = PATTERN; //if button is pressed play round 1 pattern
+     break;
+    case ON:
+      if (reading == HIGH) {
+        state[i] = OFF;
+        digitalWrite(ledPin[i],LOW);
+      }
+ 
+    }
+  }
+}
+
+void playNote() {
+    int noteDuration = 1000/noteDurations[count]; //you could make the 1000 a tempo variable 
+    tone(8, melody[count],noteDuration);
+    if (count++ >= 11)
+      count = 0;  
+}
+
+void patternFunction(){ 
+  randomSeed(millis()); //random number seed
+  for (int i = 0; i < 10; i++){
+    
+    pattern[i] = random(4); //fills array with random numbers for basic mode
+    
+  }
+  
+  currentState = PATTERN2;
+
+}
+
+void pattern2Function(){
+  
+  for (int i = 0; i < 10; i++){
+    
+    pattern2[i] = random(4); //fills array with random numbers for tone sequence in HARD mode
+    
+  }
+  
+  currentState = PATTERN3;
+
+  
+}
+  
+void pattern3Function(){
+  
+  for (int i = 0; i < 10; i++){
+    
+    pattern3[i] = random(4); //fills array with random numbers for light sequence in HARD mode
+    
+  }
+  
+  
+  currentState = PLAY;
+
+} 
+
+void playFunction(){
+ 
+  if(roundCount < 10){ //checks that user should not unlock HARD mode yet
+    
+    if(roundCount == 1){ //checks if first time through the game to give instructions
+      
+      lcd.clear();
+      lcd.setCursor(0, 2);
+      lcd.print("Instructions:");
+      delay(2000);
+      lcd.clear();
+      lcd.setCursor(0,2);
+      lcd.print("Memorize the");
+      lcd.setCursor(1,4);
+      lcd.print("sequence");
+      delay(2000);
+      lcd.clear();
+      lcd.setCursor(0,5);
+      lcd.print("READY");
+      delay(1000);
+      lcd.clear();
+      lcd.setCursor(0,6);
+      lcd.print("SET");
+      delay(1000);
+      lcd.clear();
+      lcd.setCursor(0,6);
+      lcd.print("GO!");
+      delay(500);
+    }
+    lcd.clear();
+    lcd.setCursor(0, 4);
+    lcd.print("Round ");
+    lcd.print(roundCount);
+    lcd.print("!");
+    
+    for(int i = 0; i < roundCount; i++){
+      delay(200);
+      digitalWrite(ledPin[pattern[i]], HIGH);
+      tone(8, melody[pattern[i]], 200);
+      delay(500);
+      digitalWrite(ledPin[pattern[i]], LOW);
+      delay(100);
+    
+    }
+ 
+  lcd.clear();
+  lcd.setCursor(0, 4);
+  lcd.print("Your Turn"); //alert player to enter their response
+  
+  counter = 0; //initialize counter which keeps track of where in the array user presses button
+  currentState = WAIT2; //wait for user input
+  
+}
+
+if(roundCount >= 10){ //if user completes level 9, enter HARDMODE
+  
+  currentState = HARDMODE;
+  
+ }
+}
+
+void wait2Function(){
+  
+
+  for(int i=0; i < 4; i++){
+  pins[i];
+  
+  int reading = digitalRead(pins[i]);  // check pin reading
+  switch (state[i]) {
+    case OFF: 
+      if (reading == LOW) { // button press?
+        state[i] = DEBOUNCE;
+        timer = 2;
+      } break;
+    case DEBOUNCE:
+     if (reading == LOW) {  // if button reading remains low
+        if (timer <= 0) {   // and the time elapses
+          state[i] = ON;       // this is a "real" button press"
+          digitalWrite(ledPin[i], HIGH); //light up led which corresponds to button
+          tone(8, melody[i], 250); //play tone which corresponds to button
+          player[counter] = i; //set player array to contain data of which button was pressed, counter is where in the sequence
+          Serial.println(player[counter]); //debug check
+          if (player[counter] == pattern[counter]){ //check if player input was correct
+            
+            
+            if (counter == (roundCount-1)){ //check whether to proceed to next round
+              roundCount++; //increment roundCount
+              userPress = true; //cannot proceed to winround if false
+              
+              break;
+            } 
+            counter++;
+          }
+           else {playNote();
+            digitalWrite(ledPin[i], LOW);
+            currentState = FAIL; //user input was incorrect
+            break;
+            
+           }
+          
+          
+        } else timer--;    // if time hasn't elapsed, but button is still low, keep waiting
+     } else state[i] = OFF;
+     
+     
+     break;
+    case ON:
+      if (reading == HIGH && userPress == true){ //if button press was correct and the game should proceed to next round
+        
+        state[i] = OFF; 
+        digitalWrite(ledPin[i],LOW); //turn led from last press off
+        currentState = WINROUND; //change state to win
+      }
+      
+      if(reading == HIGH && userPress == false){ //button pess was correct but round is not over
+        
+        state[i] = OFF;
+        digitalWrite(ledPin[i],LOW); //switch led off
+        
+      }
+ 
+    }
+  }
+
+
+  
+  
+  
+}
+
+void failFunction(){ //if user input was wrong
+ 
+ 
+ lcd.clear();
+ lcd.setCursor(0,3);
+ lcd.print("You Lose!");
+ tone(8, melody2[0], 500);
+ delay(900);
+ tone(8, melody2[1], 500);
+ delay(900);
+ tone(8, melody2[2], 500);
+ delay(1000);
+ tone(8, melody2[3], 500);
+ roundCount = 1;
+ currentState = START;
+
+}
+
+void winroundFunction(){ //if user input was correct in basic mode
+ 
+ userPress = false;
+ lcd.clear();
+ lcd.setCursor(0,5);
+ lcd.print("Nice!");
+ tone(8, melody3[0], 200);
+ delay(300);
+ tone(8, melody3[1], 200);
+ delay(200);
+ tone(8, melody3[2], 200);
+ delay(200);
+ tone(8, melody3[3], 200);
+ delay(200);
+
+ 
+ currentState = PLAY;
+ 
+}
+
+void winround2Fuction(){ //if user input was correct in HARD mode
+ 
+ userPress = false;
+ lcd.clear();
+ lcd.setCursor(0,5);
+ lcd.print("Nice!");
+ tone(8, melody3[0], 200);
+ delay(300);
+ tone(8, melody3[1], 200);
+ delay(200);
+ tone(8, melody3[2], 200);
+ delay(200);
+ tone(8, melody3[3], 200);
+ delay(200);
+
+ 
+ currentState = PLAYHARD;
+ 
+}
+  
+void hardMode(){ //hard mode instructions
+  
+ lcd.clear();
+ lcd.setCursor(0,2);
+ lcd.print("You Unlocked");
+ lcd.setCursor(1,3);
+ lcd.print("HARD MODE!");
+ tone(8, melody2[0], 200);
+ delay(100);
+ tone(8, melody2[5], 200);
+ delay(100);
+ tone(8, melody2[0], 200);
+ delay(100);
+ tone(8,melody2[5], 200);
+ tone(8, melody2[0], 200);
+ delay(100);
+ tone(8, melody2[5], 200);
+ delay(100);
+ tone(8, melody2[0], 200);
+ delay(100);
+ tone(8,melody2[5], 200);
+ delay(2000);
+ lcd.clear();
+ lcd.setCursor(0,1);
+ lcd.print("Pitch will not");
+ lcd.setCursor(1,2);
+ lcd.print("necessarily");
+ delay(2000);
+ lcd.clear();
+ lcd.setCursor(0,3);
+ lcd.print("correspond");
+ lcd.setCursor(1,2);
+ lcd.print("with lights!");
+ delay(2000);
+ lcd.clear();
+ lcd.setCursor(0, 2);
+ lcd.print("Instructions:");
+ delay(2000);
+ lcd.clear();
+ lcd.setCursor(0,2);
+ lcd.print("Remember both");
+ lcd.setCursor(1,3);
+ lcd.print("pitch order");
+ delay(2000);
+ lcd.clear();
+ lcd.setCursor(0,1);
+ lcd.print("and light order!");
+ delay(2000);
+
+
+ lcd.clear();
+      lcd.setCursor(0,5);
+      lcd.print("READY");
+      delay(1000);
+      lcd.clear();
+      lcd.setCursor(0,6);
+      lcd.print("SET");
+      delay(1000);
+      lcd.clear();
+      lcd.setCursor(0,6);
+      lcd.print("GO!");
+      delay(500);
+ 
+ roundCount = 1; //resets roundCount
+ 
+ 
+ currentState = PLAYHARD; //computer sequence
+ 
+}
+
+void playHard(){
+  
+  
+  if(roundCount < 10){
+    lcd.clear();
+    lcd.setCursor(0, 2);
+    lcd.print("HARD Round ");
+    lcd.print(roundCount);
+    lcd.print("!");
+    
+    delay(1000);
+    lcd.clear();
+    lcd.setCursor(0,2);
+    lcd.print("Memorize Light");
+    lcd.setCursor(1,5);
+    lcd.print("Pattern");
+    
+  for(int i = 0; i < roundCount; i++){ //plays random light sequence
+      
+     
+      Serial.print(roundCount);
+      
+      delay(200);
+      
+      digitalWrite(ledPin[pattern3[i]], HIGH);
+      
+      delay(900);
+      
+      digitalWrite(ledPin[pattern3[i]], LOW);
+      
+      delay(100);
+    
+    }
+    
+    delay(1000);
+    lcd.clear();
+    lcd.setCursor(0,2);
+    lcd.print("Memorize Tone");
+    lcd.setCursor(1,5);
+    lcd.print("Pattern");
+    
+    for(int i = 0; i < roundCount; i++){ //plays random tone sequence
+      
+      delay(200);
+      
+      digitalWrite(ledPin[pattern2[i]], HIGH);
+      
+      tone(8, melody[pattern2[i]], 300);
+      
+      delay(900);
+      
+      digitalWrite(ledPin[pattern2[i]], LOW);
+      
+      delay(100);
+      
+    }
+ 
+  lcd.clear();
+  lcd.setCursor(0, 3);
+  lcd.print("Enter Light"); //alert player to enter their response
+  lcd.setCursor(1, 5);
+  lcd.print("Pattern");
+  
+  counter = 0; //reset counter for spot in array
+  counter2 = 0; //reset counter for spot in array 
+  currentState = WAIT3; //wait for user input
+  
+}
+
+if(roundCount >= 10){ //if user has beat round 9, they win
+  
+  currentState = FINALWIN; //beat the game
+  
+ }
+}
+
+void wait3Button(){ //waits for user light sequence input (HARD mode)
+  
+  for(int i=0; i < 4; i++){ //checks through the 4 buttons for press
+  pins[i];
+  
+  int reading = digitalRead(pins[i]);  // check pin reading
+  switch (state[i]) {
+    case OFF: 
+      if (reading == LOW) { // button press?
+        state[i] = DEBOUNCE;
+        timer = 2;
+      } break;
+    case DEBOUNCE:
+     if (reading == LOW) {  // if button reading remains low
+        if (timer <= 0) {   // and the time elapses
+          state[i] = ON;       // this is a "real" button press"
+          digitalWrite(ledPin[i], HIGH);
+          player[counter] = i; //sets player input in counter position of array
+ 
+          if (player[counter] == pattern3[counter]){ //checks if correct
+            
+            
+            if (counter == (roundCount-1)){ //if correct and round is over
+              
+              //roundCount++;
+              userPress = true; //round is over
+              
+              break;
+            } 
+            
+            counter++;
+          }
+           else {playNote(); //play tone
+            digitalWrite(ledPin[i], LOW); //turn led off
+            currentState = FAIL; //user input was incorrect
+            break;
+            
+           }
+          
+          
+        } else timer--;    // if time hasn't elapsed, but button is still low, keep waiting
+     } else state[i] = OFF;
+     
+     
+     break;
+    case ON:
+      if (reading == HIGH && userPress == true){ //button press was correct and round (for light sequence) is over
+        
+        state[i] = OFF;
+        digitalWrite(ledPin[i],LOW);
+        lcd.clear();
+        lcd.setCursor(0, 3);
+        lcd.print("Enter Tone"); //alert player to enter their response
+        lcd.setCursor(1, 4);
+        lcd.print("Pattern");
+        userPress = false;
+        currentState = WAIT4; //waits for user tone input
+      }
+      
+      if(reading == HIGH && userPress == false){ //round is not over
+        
+        state[i] = OFF;
+        digitalWrite(ledPin[i],LOW);
+        
+      }
+ 
+    }
+  }
+  
+  
+}
+
+void wait4Tune(){ //waits for user tone sequence input (HARD mode)
+  
+  for(int i=0; i < 4; i++){
+  pins[i];
+  
+  int reading = digitalRead(pins[i]);  // check pin reading
+  switch (state[i]) {
+    case OFF: 
+      if (reading == LOW) { // button press?
+        state[i] = DEBOUNCE;
+        timer = 2;
+      } break;
+    case DEBOUNCE:
+     if (reading == LOW) {  // if button reading remains low
+     
+        if (timer <= 0) {   // and the time elapses
+        
+          state[i] = ON;       // this is a "real" button press"
+          digitalWrite(ledPin[i], HIGH);
+          tone(8, melody[i], 250);
+          player2[counter2] = i;
+          
+          
+          if (player2[counter2] == pattern2[counter2]){ //check whether user input is the same as pattern
+            
+            
+            if (counter2 == (roundCount-1)){ //check whether round is completed
+              
+              
+              roundCount++; //increment round count
+              
+              userPress = true; //let system know round is over
+              
+              break;
+            } 
+            
+            counter2++;
+          }
+           else {playNote(); //play tone
+            digitalWrite(ledPin[i], LOW); //turn led off
+            
+            currentState = FAIL; //incorrect user input
+            break;
+            
+           }
+          
+          
+        } else timer--;    // if time hasn't elapsed, but button is still low, keep waiting
+     } else state[i] = OFF;
+     
+     
+    break;
+    case ON:
+      if (reading == HIGH && userPress == true){ //input was all correct and round is over
+        
+        state[i] = OFF; //reset state
+        digitalWrite(ledPin[i],LOW); //turn led off
+        
+        currentState = WINROUND2; 
+      }
+      
+      if(reading == HIGH && userPress == false){ //input was all correct so far, round is not over
+        
+        state[i] = OFF; //reset state
+        
+        digitalWrite(ledPin[i],LOW); //turn led off
+        
+      }
+ 
+    }
+  }
+  
+  
+}
+
+void winFinal(){ //final win squence
+  
+ lcd.clear();
+ lcd.setCursor(0,4);
+ lcd.print("CONGRATS!");
+ lcd.setCursor(1,5);
+ lcd.print("YOU WON!");
+ tone(8, melody2[3], 500);
+ delay(500);
+ tone(8, melody2[1], 500);
+ delay(500);
+ tone(8, melody2[2], 500);
+ delay(1000);
+ tone(8, melody2[3], 500);
+ delay(500);
+ tone(8, melody2[0], 500);
+ delay(500);
+ tone(8, melody2[1], 500);
+ delay(500);
+ tone(8, melody2[2], 500);
+ delay(1000);
+ tone(8, melody2[3], 500);
+ 
+ 
+ roundCount = 1; //reset roundCount
+ 
+ currentState = START; //restart game
+
+}
